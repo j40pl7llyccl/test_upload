@@ -1,0 +1,8 @@
+[2025-01-23-18:10:19'931"]Exec 3 Time:
+   [ImageDev_OpenImageFile]
+      Cur: 0.01610 ms
+      Avg: 0.00 ms
+   [Drawing2Form]
+      Cur: 0.00000 ms
+      Avg: 0.00 ms
+

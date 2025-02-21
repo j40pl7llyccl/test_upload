@@ -1,0 +1,32 @@
+[2025-01-23-13:39:43'247"]Exec display01 time:
+   [ImageDev_OpenImageFile]
+      Time: 33.53 ms
+   [Drawing2Form]
+      Time: 15.58 ms
+
+[2025-01-23-13:39:49'255"]Exec display02 time:
+   [ImageDev_OpenImageFile]
+      Time: 20.52 ms
+   [Drawing2Form]
+      Time: 11.24 ms
+
+[2025-01-23-13:40:42'435"]Exec display01 Time:
+   [ImageDev_OpenImageFile]
+      Min: 32.64 ms
+      Avg: 39.60 ms
+      Max: 62.39 ms
+   [Drawing2Form]
+      Min: 7.45 ms
+      Avg: 9.71 ms
+      Max: 19.14 ms
+
+[2025-01-23-13:41:08'919"]Exec display02 Time:
+   [ImageDev_OpenImageFile]
+      Min: 32.66 ms
+      Avg: 39.27 ms
+      Max: 49.79 ms
+   [Drawing2Form]
+      Min: 7.54 ms
+      Avg: 9.71 ms
+      Max: 22.38 ms
+

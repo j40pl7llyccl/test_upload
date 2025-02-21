@@ -1,0 +1,52 @@
+[2025-01-23-13:28:06'568"]Exec display01 time:
+   [ImageDev_OpenImageFile]
+      Time: 22.00 ms
+   [Drawing2Form]
+      Time: 12.48 ms
+
+[2025-01-23-13:28:12'220"]Exec display02 time:
+   [ImageDev_OpenImageFile]
+      Time: 21.88 ms
+   [Drawing2Form]
+      Time: 11.99 ms
+
+[2025-01-23-13:29:15'773"]Exec display01 Time:
+   [ImageDev_OpenImageFile]
+      Min: 30.08 ms
+      Avg: 30.08 ms
+      Max: 30.08 ms
+   [Drawing2Form]
+      Min: 9.06 ms
+      Avg: 9.06 ms
+      Max: 9.06 ms
+
+[2025-01-23-13:29:21'171"]Exec display01 Time:
+   [ImageDev_OpenImageFile]
+      Min: 28.55 ms
+      Avg: 29.31 ms
+      Max: 30.08 ms
+   [Drawing2Form]
+      Min: 8.42 ms
+      Avg: 8.74 ms
+      Max: 9.06 ms
+
+[2025-01-23-13:29:22'292"]Exec display01 Time:
+   [ImageDev_OpenImageFile]
+      Min: 28.55 ms
+      Avg: 29.34 ms
+      Max: 30.08 ms
+   [Drawing2Form]
+      Min: 8.42 ms
+      Avg: 9.11 ms
+      Max: 9.84 ms
+
+[2025-01-23-13:29:24'372"]Exec display01 Time:
+   [ImageDev_OpenImageFile]
+      Min: 28.55 ms
+      Avg: 29.51 ms
+      Max: 30.08 ms
+   [Drawing2Form]
+      Min: 8.30 ms
+      Avg: 8.91 ms
+      Max: 9.84 ms
+

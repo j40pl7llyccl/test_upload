@@ -1,0 +1,2 @@
+[2025-01-23-10:11:44'663"][UScript::Running] <Name=inf01, ID=-1> call macro(0,uIP.MacroProvider.StreamIO.ImageFileLoader.uMProvidImageLoader,ImageDev_OpenImageFile) code = OK, time spane = 22.13 ms
+[2025-01-23-10:11:48'705"][UScript::Running] exec inf01 time span = 4066.28 ms
