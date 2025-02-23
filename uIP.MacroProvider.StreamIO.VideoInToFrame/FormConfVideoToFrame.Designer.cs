@@ -62,15 +62,15 @@ namespace uIP.MacroProvider.StreamIO.VideoInToFrame
             // 
             this.intervalTextBox.Location = new System.Drawing.Point(145, 70);
             this.intervalTextBox.Name = "intervalTextBox";
-            this.intervalTextBox.Size = new System.Drawing.Size(134, 22);
+            this.intervalTextBox.Size = new System.Drawing.Size(134, 36);
             this.intervalTextBox.TabIndex = 3;
             this.intervalTextBox.TextChanged += new System.EventHandler(this.intervalTextBox_TextChanged);
             // 
             // btnExtract
             // 
-            this.btnExtract.Location = new System.Drawing.Point(145, 111);
+            this.btnExtract.Location = new System.Drawing.Point(246, 112);
             this.btnExtract.Name = "btnExtract";
-            this.btnExtract.Size = new System.Drawing.Size(75, 23);
+            this.btnExtract.Size = new System.Drawing.Size(182, 63);
             this.btnExtract.TabIndex = 4;
             this.btnExtract.Text = "extract";
             this.btnExtract.UseVisualStyleBackColor = true;
@@ -80,7 +80,7 @@ namespace uIP.MacroProvider.StreamIO.VideoInToFrame
             // 
             this.textBoxPickedDir.Location = new System.Drawing.Point(145, 27);
             this.textBoxPickedDir.Name = "textBoxPickedDir";
-            this.textBoxPickedDir.Size = new System.Drawing.Size(283, 22);
+            this.textBoxPickedDir.Size = new System.Drawing.Size(283, 36);
             this.textBoxPickedDir.TabIndex = 5;
             this.textBoxPickedDir.TextChanged += new System.EventHandler(this.textBoxPickedDir_TextChanged);
             // 
@@ -103,7 +103,7 @@ namespace uIP.MacroProvider.StreamIO.VideoInToFrame
             // 
             // FormConfVideoToFrame
             // 
-            this.ClientSize = new System.Drawing.Size(501, 192);
+            this.ClientSize = new System.Drawing.Size(562, 202);
             this.Controls.Add(this.label_progress);
             this.Controls.Add(this.label3);
             this.Controls.Add(this.textBoxPickedDir);

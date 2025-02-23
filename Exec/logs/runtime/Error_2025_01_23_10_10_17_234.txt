@@ -1,1 +1,0 @@
-[2025-01-23-10:11:48'705"][UScript::Running] <Name=inf01, ID=-1> call macro(1,uIP.MacroProvider.YZW.SOP.Inference.uMProvidModelSopInference,Inf_ModelInference) err(NG) with msg(Run frame not match config; Run(1920, 1080, 24) != Conf(1920, 1080, 3)).

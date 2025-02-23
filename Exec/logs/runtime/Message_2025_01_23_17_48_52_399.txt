@@ -1,6 +1,0 @@
-[2025-01-23-17:51:46'691"][1->ImageDev_OpenImageFile] get "MacroMethodSettings" fail.
-[2025-01-23-17:51:46'696"][1->Drawing2Form] get "MacroMethodSettings" fail.
-[2025-01-23-17:51:46'698"][2->ImageDev_OpenImageFile] get "MacroMethodSettings" fail.
-[2025-01-23-17:51:46'699"][2->Drawing2Form] get "MacroMethodSettings" fail.
-[2025-01-23-17:51:46'701"][3->ImageDev_OpenImageFile] get "MacroMethodSettings" fail.
-[2025-01-23-17:51:46'702"][3->Drawing2Form] get "MacroMethodSettings" fail.

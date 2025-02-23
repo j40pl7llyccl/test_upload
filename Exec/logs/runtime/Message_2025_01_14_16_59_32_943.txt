@@ -1,2 +1,0 @@
-[2025-01-14-17:04:02'399"][Load2Display->OpenImageFile] get "MacroMethodSettings" fail.
-[2025-01-14-17:04:33'632"][Load2Display->Drawing2Form] get "MacroMethodSettings" fail.

@@ -57,8 +57,8 @@
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Ionic.Zip">
-      <HintPath>ThirdPartyLib\Ionic.Zip.dll</HintPath>
+    <Reference Include="Ionic.Zip, Version=1.9.1.8, Culture=neutral, PublicKeyToken=edbe51ad942a3f5c, processorArchitecture=MSIL">
+      <HintPath>..\packages\Ionic.Zip.1.9.1.8\lib\Ionic.Zip.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.VisualC" />
     <Reference Include="System" />
@@ -70,11 +70,8 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="VideoProcessingLib">
-      <HintPath>..\..\ClassLibrary2\bin\Debug\VideoProcessingLib.dll</HintPath>
-    </Reference>
-    <Reference Include="VideoProcessingLibrary">
-      <HintPath>..\..\VideoProcessingLibrary\bin\Debug\VideoProcessingLibrary.dll</HintPath>
+    <Reference Include="uIP.Lib">
+      <HintPath>..\..\..\..\OneDrive\桌面\uIP.Lib.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -337,6 +334,10 @@
       <Project>{B973B3DA-8AE3-4D22-9D24-758573A82277}</Project>
       <Name>uIP.MacroProvider.StreamIO.VideoInToFrame</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

@@ -18,15 +18,8 @@
                 components.Dispose();
             }
             base.Dispose(disposing);
-            this.Text = "Video cutting tool";
         }
 
-
-        private void InitializeComponent()
-        {
-            this.Text = "Divided Dat Form";
-            
-        }
         #region Windows Form 設計工具產生的程式碼
 
             /// <summary>
@@ -44,9 +37,10 @@
             // bt_Auto
             // 
             this.bt_Auto.Font = new System.Drawing.Font("新細明體", 10F);
-            this.bt_Auto.Location = new System.Drawing.Point(76, 79);
+            this.bt_Auto.Location = new System.Drawing.Point(165, 158);
+            this.bt_Auto.Margin = new System.Windows.Forms.Padding(6, 6, 6, 6);
             this.bt_Auto.Name = "bt_Auto";
-            this.bt_Auto.Size = new System.Drawing.Size(90, 50);
+            this.bt_Auto.Size = new System.Drawing.Size(195, 100);
             this.bt_Auto.TabIndex = 0;
             this.bt_Auto.Text = "Auto";
             this.bt_Auto.UseVisualStyleBackColor = true;
@@ -54,9 +48,10 @@
             // bt_Select
             // 
             this.bt_Select.Font = new System.Drawing.Font("新細明體", 10F);
-            this.bt_Select.Location = new System.Drawing.Point(355, 79);
+            this.bt_Select.Location = new System.Drawing.Point(769, 158);
+            this.bt_Select.Margin = new System.Windows.Forms.Padding(6, 6, 6, 6);
             this.bt_Select.Name = "bt_Select";
-            this.bt_Select.Size = new System.Drawing.Size(75, 50);
+            this.bt_Select.Size = new System.Drawing.Size(162, 100);
             this.bt_Select.TabIndex = 1;
             this.bt_Select.Text = "Select";
             this.bt_Select.UseVisualStyleBackColor = true;
@@ -66,30 +61,33 @@
             // 
             this.label1.AutoSize = true;
             this.label1.Font = new System.Drawing.Font("新細明體", 15F);
-            this.label1.Location = new System.Drawing.Point(206, 33);
+            this.label1.Location = new System.Drawing.Point(446, 66);
+            this.label1.Margin = new System.Windows.Forms.Padding(6, 0, 6, 0);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(131, 20);
+            this.label1.Size = new System.Drawing.Size(267, 40);
             this.label1.TabIndex = 2;
             this.label1.Text = "DataSet Divided";
             // 
             // bt_Next
             // 
-            this.bt_Next.Location = new System.Drawing.Point(76, 323);
+            this.bt_Next.Location = new System.Drawing.Point(165, 646);
+            this.bt_Next.Margin = new System.Windows.Forms.Padding(6, 6, 6, 6);
             this.bt_Next.Name = "bt_Next";
-            this.bt_Next.Size = new System.Drawing.Size(354, 32);
+            this.bt_Next.Size = new System.Drawing.Size(767, 64);
             this.bt_Next.TabIndex = 3;
             this.bt_Next.Text = "Next";
             this.bt_Next.UseVisualStyleBackColor = true;
             // 
             // DividedDataForm
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(13F, 24F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.ClientSize = new System.Drawing.Size(1191, 900);
             this.Controls.Add(this.bt_Next);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.bt_Select);
             this.Controls.Add(this.bt_Auto);
+            this.Margin = new System.Windows.Forms.Padding(6, 6, 6, 6);
             this.Name = "DividedDataForm";
             this.Text = "Form1";
             this.ResumeLayout(false);

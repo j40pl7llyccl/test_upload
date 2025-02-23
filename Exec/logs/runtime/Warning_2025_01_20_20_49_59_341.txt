@@ -1,8 +1,0 @@
-[2025-01-20-20:50:12'788"]YZW_SOP_Inference read settings with error: System.Xml.XmlException: 在根層次的資料無效。 行 1，位置 1。
-   於 System.Xml.XmlTextReaderImpl.Throw(Exception e)
-   於 System.Xml.XmlTextReaderImpl.ParseRootLevelWhitespace()
-   於 System.Xml.XmlTextReaderImpl.ParseDocumentContent()
-   於 System.Xml.XmlLoader.Load(XmlDocument doc, XmlReader reader, Boolean preserveWhitespace)
-   於 System.Xml.XmlDocument.Load(XmlReader reader)
-   於 System.Xml.XmlDocument.LoadXml(String xml)
-   於 uIP.MacroProvider.YZW.SOP.Inference.uMProvidModelSopInference.ReadMacroSettings(UMacro& macro, String pathOfFolder, String cfgFile) 於 D:\project\coding\uIP.Lib\uIP.MacroProvider.YZW.SOP.Inference\uMProvidModelSopInference.cs: 行 530

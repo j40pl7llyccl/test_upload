@@ -1,2 +1,0 @@
-[2025-01-20-20:56:33'324"][test01->ImageDev_OpenImageFile] get "MacroMethodSettings" fail.
-[2025-01-20-20:56:43'835"][test01->Inf_ModelInference] get "MacroMethodSettings" fail.

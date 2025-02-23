@@ -1,6 +1,0 @@
-[2025-01-20-20:33:37'912"][test01->ImageDev_OpenImageFile] get "MacroMethodSettings" fail.
-[2025-01-20-20:33:37'913"][test01->ImageDev_OpenImageFile] get "LoadingImageDir" fail.
-[2025-01-20-20:33:42'821"][test01->Inf_ModelInference] get "MacroMethodSettings" fail.
-[2025-01-20-20:35:39'595"][test01->ImageDev_OpenImageFile] get "MacroMethodSettings" fail.
-[2025-01-20-20:35:39'595"][test01->ImageDev_OpenImageFile] get "LoadingImageDir" fail.
-[2025-01-20-20:35:59'901"][test01->Inf_ModelInference] get "MacroMethodSettings" fail.

@@ -1,4 +1,0 @@
-[2025-01-24-19:24:06'198"][1->ImageDev_OpenImageFile] get "MacroMethodSettings" fail.
-[2025-01-24-19:24:06'201"][1->Inf_ModelInference] get "MacroMethodSettings" fail.
-[2025-01-24-19:24:11'341"][1->Evaluate] get "MacroMethodSettings" fail.
-[2025-01-24-19:25:26'434"][1->Drawing2Form] get "MacroMethodSettings" fail.
