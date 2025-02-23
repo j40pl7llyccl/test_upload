@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Windows.Forms;
 using uIP.MacroProvider.StreamIO.DividedData;
@@ -301,6 +301,11 @@ namespace uIP.MacroProvider.StreamIO.DividedData
 
             // 最後提示
             MessageBox.Show("資料集設定完成！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }
