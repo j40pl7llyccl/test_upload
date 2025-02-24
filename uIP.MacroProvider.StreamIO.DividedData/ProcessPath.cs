@@ -1,11 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Windows.Forms;
-
 using uIP.Lib;
 using uIP.Lib.DataCarrier;
 using uIP.Lib.Script;
@@ -131,7 +127,10 @@ namespace uIP.MacroProvider.StreamIO.DividedData
 
                 // (2) 實際檔案搬移邏輯
                 //     baseDir 是要搬到的總目錄，可視需要改寫或也帶入參數
-                string baseDir = @"D:\DataDivided";
+                //string baseDir = @"C:\DataDivided";
+                string baseDir = Environment.GetFolderPath(Environment.SpecialFolder.Desktop); //C:\Users\jordan.liu\source\repos\uIP.Lib\uIP.MacroProvider.StreamIO.DividedData\bin\Debug\
+                baseDir = Path.Combine(baseDir, "AI_DataSets");
+                //Console.WriteLine("baseDir: ", baseDir);
                 string trainDir = Path.Combine(baseDir, "train");
                 string testDir = Path.Combine(baseDir, "test");
                 string valDir = Path.Combine(baseDir, "val");
@@ -217,7 +216,8 @@ namespace uIP.MacroProvider.StreamIO.DividedData
             try
             {
                 // 這裡的 baseDir, trainDir, ... 寫法與 Macro_ProcessPath 一致
-                string baseDir = @"D:\DataDivided";
+                string baseDir = Environment.GetFolderPath(Environment.SpecialFolder.Desktop); //C: \Users\jordan.liu\source\repos\uIP.Lib\uIP.MacroProvider.StreamIO.DividedData\bin\Debug\
+                baseDir = Path.Combine(baseDir, "AI_DataSets");
                 string trainDir = Path.Combine(baseDir, "train");
                 string testDir = Path.Combine(baseDir, "test");
                 string valDir = Path.Combine(baseDir, "val");
