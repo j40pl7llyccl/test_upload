@@ -225,6 +225,18 @@ namespace uIP.MacroProvider.StreamIO.DividedData
                 colLabel: "Validation"
             );
         }
+
+        private int GetFileCount(string path)
+        {
+            // 若 path 為空或資料夾不存在，就當作 0
+            if (string.IsNullOrEmpty(path) || !Directory.Exists(path))
+                return 0;
+
+            // 如果要包含所有子資料夾，請改成 SearchOption.AllDirectories
+            string[] files = Directory.GetFiles(path, "*.*", SearchOption.TopDirectoryOnly);
+            return files.Length;
+        }
+
         private void bt_ok_Click(object sender, EventArgs e)
         {
             var plugin = new ProcessPath();
@@ -242,7 +254,7 @@ namespace uIP.MacroProvider.StreamIO.DividedData
             bool r3Test = checkBox8.Checked;
             bool r3Val = checkBox9.Checked;
 
-            // (A) 檢查同一行不可多選
+            // (A) 檢查(同一行不可多選、同一Dataset不可重複)
             Func<bool, bool, bool, int> countChecks = (a, b, c) => (a ? 1 : 0) + (b ? 1 : 0) + (c ? 1 : 0);
 
             if (countChecks(r1Train, r1Test, r1Val) > 1)
@@ -261,51 +273,90 @@ namespace uIP.MacroProvider.StreamIO.DividedData
                 return;
             }
 
-            // (B) 檢查同一Dataset不可重複出現在多行
-            int trainCount = (r1Train ? 1 : 0) + (r2Train ? 1 : 0) + (r3Train ? 1 : 0);
-            if (trainCount > 1)
+            int trainRowCount = (r1Train ? 1 : 0) + (r2Train ? 1 : 0) + (r3Train ? 1 : 0);
+            if (trainRowCount > 1)
             {
                 MessageBox.Show("Train Dataset 重複使用於多個路徑，請修正。", "警告");
                 return;
             }
-
-            int testCount = (r1Test ? 1 : 0) + (r2Test ? 1 : 0) + (r3Test ? 1 : 0);
-            if (testCount > 1)
+            int testRowCount = (r1Test ? 1 : 0) + (r2Test ? 1 : 0) + (r3Test ? 1 : 0);
+            if (testRowCount > 1)
             {
                 MessageBox.Show("Test Dataset 重複使用於多個路徑，請修正。", "警告");
                 return;
             }
-
-            int valCount = (r1Val ? 1 : 0) + (r2Val ? 1 : 0) + (r3Val ? 1 : 0);
-            if (valCount > 1)
+            int valRowCount = (r1Val ? 1 : 0) + (r2Val ? 1 : 0) + (r3Val ? 1 : 0);
+            if (valRowCount > 1)
             {
                 MessageBox.Show("Validation Dataset 重複使用於多個路徑，請修正。", "警告");
                 return;
             }
 
-            // (C) 全部檢查通過後，再依需求呼叫 DoProcessPath
+            // ============== 重點：改以「檔案數」來計算比例 ==============
+            // (B) 先取得三個路徑的檔案數
+            int c1 = GetFileCount(textBox1.Text);
+            int c2 = GetFileCount(textBox2.Text);
+            int c3 = GetFileCount(textBox3.Text);
+
+            // (C) 將每個路徑對應到的檔案數，累加到 trainCount / testCount / valCount
+            int trainCount = 0;
+            int testCount = 0;
+            int valCount = 0;
+
+            // 第1行(若勾Train，trainCount += c1；若勾Test，testCount += c1；若勾Val，valCount += c1)
+            if (r1Train) trainCount += c1;
+            if (r1Test) testCount += c1;
+            if (r1Val) valCount += c1;
+
+            // 第2行
+            if (r2Train) trainCount += c2;
+            if (r2Test) testCount += c2;
+            if (r2Val) valCount += c2;
+
+            // 第3行
+            if (r3Train) trainCount += c3;
+            if (r3Test) testCount += c3;
+            if (r3Val) valCount += c3;
+
+            // (D) 計算總檔案數
+            int total = trainCount + testCount + valCount;
+            if (total == 0)
+            {
+                // 代表三個路徑的檔案數加起來=0 (或都沒勾選)
+                // 根據需求可提示
+                MessageBox.Show("3個路徑的檔案數為 0，或尚未選擇路徑！", "提醒");
+                return;
+            }
+
+            // (E) 算百分比
+            double trainPercent = (trainCount * 100.0) / total;
+            double testPercent = (testCount * 100.0) / total;
+            double valPercent = (valCount * 100.0) / total;
+
+            // 您可用三個 label 顯示結果 (或其他方式)
+            labelTrainPercent.Text = $"Train: {trainCount} 檔 (約 {trainPercent:0.0}%)";
+            labelTestPercent.Text = $"Test : {testCount} 檔 (約 {testPercent:0.0}%)";
+            labelValPercent.Text = $"Val  : {valCount} 檔 (約 {valPercent:0.0}%)";
+
+            // (F) 進行搬檔
             if (!string.IsNullOrEmpty(textBox1.Text))
             {
                 plugin.DoProcessPath(textBox1.Text, r1Train, r1Test, r1Val);
             }
-
             if (!string.IsNullOrEmpty(textBox2.Text))
             {
                 plugin.DoProcessPath(textBox2.Text, r2Train, r2Test, r2Val);
             }
-
             if (!string.IsNullOrEmpty(textBox3.Text))
             {
                 plugin.DoProcessPath(textBox3.Text, r3Train, r3Test, r3Val);
             }
 
-            // 最後提示
-            MessageBox.Show("資料集設定完成！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            // 提示完成
+            MessageBox.Show("資料集分割完成！", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
-        private void button4_Click(object sender, EventArgs e)
-        {
 
-        }
     }
 }
+
