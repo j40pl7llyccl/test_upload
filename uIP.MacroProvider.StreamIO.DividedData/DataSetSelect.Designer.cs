@@ -1,4 +1,4 @@
-﻿namespace uIP.MacroProvider.StreamIO.DividedData
+namespace uIP.MacroProvider.StreamIO.DividedData
 {
     partial class DataSetSelect
     {
@@ -47,6 +47,9 @@
             this.textBox2 = new System.Windows.Forms.TextBox();
             this.textBox3 = new System.Windows.Forms.TextBox();
             this.bt_ok = new System.Windows.Forms.Button();
+            this.labelTrainPercent = new System.Windows.Forms.Label();
+            this.labelTestPercent = new System.Windows.Forms.Label();
+            this.labelValPercent = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // checkBox1
@@ -252,11 +255,38 @@
             this.bt_ok.UseVisualStyleBackColor = true;
             this.bt_ok.Click += new System.EventHandler(this.bt_ok_Click);
             // 
+            // labelTrainPercent
+            // 
+            this.labelTrainPercent.AutoSize = true;
+            this.labelTrainPercent.Location = new System.Drawing.Point(1722, 137);
+            this.labelTrainPercent.Name = "labelTrainPercent";
+            this.labelTrainPercent.Size = new System.Drawing.Size(0, 24);
+            this.labelTrainPercent.TabIndex = 19;
+            // 
+            // labelTestPercent
+            // 
+            this.labelTestPercent.AutoSize = true;
+            this.labelTestPercent.Location = new System.Drawing.Point(1718, 279);
+            this.labelTestPercent.Name = "labelTestPercent";
+            this.labelTestPercent.Size = new System.Drawing.Size(0, 24);
+            this.labelTestPercent.TabIndex = 20;
+            // 
+            // labelValPercent
+            // 
+            this.labelValPercent.AutoSize = true;
+            this.labelValPercent.Location = new System.Drawing.Point(1722, 387);
+            this.labelValPercent.Name = "labelValPercent";
+            this.labelValPercent.Size = new System.Drawing.Size(0, 24);
+            this.labelValPercent.TabIndex = 21;
+            // 
             // DataSetSelect
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(13F, 24F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1728, 707);
+            this.ClientSize = new System.Drawing.Size(1964, 707);
+            this.Controls.Add(this.labelValPercent);
+            this.Controls.Add(this.labelTestPercent);
+            this.Controls.Add(this.labelTrainPercent);
             this.Controls.Add(this.bt_ok);
             this.Controls.Add(this.textBox3);
             this.Controls.Add(this.textBox2);
@@ -305,5 +335,8 @@
         private System.Windows.Forms.TextBox textBox2;
         private System.Windows.Forms.TextBox textBox3;
         private System.Windows.Forms.Button bt_ok;
+        private System.Windows.Forms.Label labelTrainPercent;
+        private System.Windows.Forms.Label labelTestPercent;
+        private System.Windows.Forms.Label labelValPercent;
     }
 }
