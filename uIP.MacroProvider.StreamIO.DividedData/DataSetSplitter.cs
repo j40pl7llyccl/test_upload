@@ -1,52 +1,43 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
+using System;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+using uIP.Lib;
+using uIP.Lib.DataCarrier;
+using uIP.Lib.Script;
+using uIP.MacroProvider.StreamIO.DividedData;
 
 namespace uIP.MacroProvider.StreamIO.DividedData
 {
     public partial class DataSetSplitter : Form
     {
-        private Label lblFolderPath;
-        private TextBox txtFolderPath;
-        private Button btnSelectFolder;
-        private Label lblTrain;
-        private Label lblTest;
-        private Label lblVal;
-        private NumericUpDown numTrain;
-        private NumericUpDown numTest;
-        private NumericUpDown numVal;
-        private Button btnSplit;
+        // 提供給外部或本身 new 出的 Plugin (FileDistributor) 與 MacroInstance
+        public UMacro MacroInstance { get; set; }
+        public bool M_Flag { get; set; }
+        public FileDistributor Plugin { get; set; }
+
         public DataSetSplitter()
         {
             InitializeComponent();
-        }
-
-        private void DataSetSplitter_Load(object sender, EventArgs e)
-        {
-
+            M_Flag = true;
+            Plugin = new FileDistributor();
+            Plugin.Initialize(null);
         }
 
         private void btnSelectFolder_Click(object sender, EventArgs e)
         {
-            using (FolderBrowserDialog folderDialog = new FolderBrowserDialog())
+            using (FolderBrowserDialog dialog = new FolderBrowserDialog())
             {
-                if (folderDialog.ShowDialog() == DialogResult.OK)
+                if (dialog.ShowDialog() == DialogResult.OK)
                 {
-                    txtFolderPath.Text = folderDialog.SelectedPath;
+                    textBox1.Text = dialog.SelectedPath;
                 }
             }
         }
 
         private void btnSplit_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(txtFolderPath.Text) || !Directory.Exists(txtFolderPath.Text))
+            // 1. 只做「設定參數」，不執行 Macro
+            if (string.IsNullOrWhiteSpace(textBox1.Text) || !Directory.Exists(textBox1.Text))
             {
                 MessageBox.Show("請選擇有效的資料夾！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
@@ -56,52 +47,54 @@ namespace uIP.MacroProvider.StreamIO.DividedData
             double testRatio = (double)numTest.Value / 100;
             double valRatio = (double)numVal.Value / 100;
 
-            if (Math.Abs((trainRatio + testRatio + valRatio) - 1.0) > 0.01)
+            if (Math.Abs(trainRatio + testRatio + valRatio - 1.0) > 0.0001)
             {
-                MessageBox.Show("比例總和必須為100%！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Train/Test/Val 比例總和必須為 100%！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            string[] files = Directory.GetFiles(txtFolderPath.Text);
-            Random random = new Random();
-            files = files.OrderBy(f => random.Next()).ToArray();
+            // 2. 準備好 Plugin 與 MacroInstance
+            //if (Plugin == null)
+            //{
+            //    Plugin = new FileDistributor();
+            //}
 
-            int trainCount = (int)(files.Length * trainRatio);
-            int testCount = (int)(files.Length * testRatio);
-            int valCount = files.Length - trainCount - testCount;
-
-            string trainPath = Path.Combine(txtFolderPath.Text, "train");
-            string testPath = Path.Combine(txtFolderPath.Text, "test");
-            string valPath = Path.Combine(txtFolderPath.Text, "val");
-
-            Directory.CreateDirectory(trainPath);
-            Directory.CreateDirectory(testPath);
-            Directory.CreateDirectory(valPath);
-
-            MoveFiles(files.Take(trainCount).ToArray(), trainPath);
-            MoveFiles(files.Skip(trainCount).Take(testCount).ToArray(), testPath);
-            MoveFiles(files.Skip(trainCount + testCount).ToArray(), valPath);
-
-            MessageBox.Show("數據集劃分完成！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void MoveFiles(string[] files, string destination)
-        {
-            foreach (var file in files)
+            if (!M_Flag)
             {
-                string destFile = Path.Combine(destination, Path.GetFileName(file));
-                File.Move(file, destFile);
+                MessageBox.Show("數據分配功能已被停用。", "通知", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
-        }
 
-        private void textBox1_TextChanged(object sender, EventArgs e)
-        {
+            // 此處可以根據 MacroInstance 進行額外判斷或設定（若需要的話）
+            if (MacroInstance == null)
+            {
+                MessageBox.Show("MacroInstance 未設定，無法進行數據分配。", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
 
-        }
+            // 3. 呼叫 Plugin 的 SetXXX(...) 方法，將參數寫入 MacroInstance
+            Plugin.SetFolderPath(MacroInstance, textBox1.Text);
+            Plugin.SetTrainRatio(MacroInstance, trainRatio);
+            Plugin.SetTestRatio(MacroInstance, testRatio);
+            Plugin.SetValRatio(MacroInstance, valRatio);
 
-        private void DataSetSplitter_Load_1(object sender, EventArgs e)
-        {
+            // 6. 直接執行搬檔 (DoDistributeFilesDirect)；若您需要
+            //    當下就將檔案搬移到 train / test / val，可呼叫：
+            Plugin.DoDistributeFilesDirect(
+                folderPath: textBox1.Text,
+                trainRatio: trainRatio,
+                testRatio: testRatio,
+                valRatio: valRatio
+            );
 
+            // 7. 執行完成後提示
+            MessageBox.Show(
+                "已於本次執行中『直接』搬檔至 train/test/val 資料夾！\n" +
+                "（同時也已設定參數到 MacroInstance，供後續流程使用。）",
+                "成功(直接搬檔)",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information
+            );
         }
     }
 }
