@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,17 +10,15 @@ using uIP.Lib.DataCarrier;
 using uIP.Lib.Script;
 using uIP.MacroProvider.StreamIO.VideoInToFrame;
 
-
 namespace VideoFrameExtractor
 {
     public class VideoExtractor : UMacroMethodProviderPlugin
     {
         const string VideoToFrameMethodName = "VideoDev_VideosToFrame";
 
-        //使用者設定參數
+        // 使用者設定參數
         private string _videoFolderPath = string.Empty;
         private int _intervalSeconds;
-
 
         public enum eCallReturn
         {
@@ -31,38 +29,26 @@ namespace VideoFrameExtractor
         public VideoExtractor() : base()
         {
             m_strInternalGivenName = "VideoExtractor";
-
         }
         public override bool Initialize(UDataCarrier[] param)
         {
             /*--
                 follow the example of uIP.MacroProvider.StreamIO.ImageFileLoader
-            )--*/
+            --*/
             var macro = new UMacro(null, m_strInternalGivenName, VideoToFrameMethodName, OpenVideoFile,
                                     null, //immutable
                                     null, //variable
                                     null, //prev
                                     new UDataCarrierTypeDescription[]{
                                         new UDataCarrierTypeDescription(typeof(string), "Image file path")
-                                    }// return
+                                    } // return
                         );
 
             m_UserQueryOpenedMethods.Add(macro);
 
             m_createMacroDoneFromMethod.Add(VideoToFrameMethodName, MacroShellDoneCall_VideoFile);
 
-            // config variable
-
-            // config the macro GET/SET
-            // fill macro get/set
-            // - list all available names
-            // - if multiple methods use same name, check by UMacro MethodName
-            // - if own by one method, not check the MethodName
-            //m_MacroControls.Add("LoadingImageDir", new UScriptControlCarrierMacro("LoadingImageDir", true, true, true,
-            //    new UDataCarrierTypeDescription[] { new UDataCarrierTypeDescription(typeof(string), "Loading dir") },
-            //    IoctrlGet_LoadingDir, IoctrlSet_LoadingDir));
-
-            // config the macro GET/SET
+            // config macro GET/SET (省略部分範例設定)
             m_MacroControls.Add("LoadingVideoDir", new UScriptControlCarrierMacro("LoadingVideoDir", true, true, true,
                 new UDataCarrierTypeDescription[] { new UDataCarrierTypeDescription(typeof(string), "Loading dir") },
                 new fpGetMacroScriptControlCarrier((UScriptControlCarrier carrier, UMacro whichMacro, ref bool bRetStatus) => IoctrlGet_LoadingDir(whichMacro.MethodName, whichMacro)),
@@ -124,7 +110,6 @@ namespace VideoFrameExtractor
                 return null;
             }
             //
-
             if (PrevPropagationCarrier != null && PrevPropagationCarrier.Length > 0)
             {
                 double? fromPrev = UDataCarrier.Get<double?>(PrevPropagationCarrier[0], null);
@@ -148,51 +133,20 @@ namespace VideoFrameExtractor
             }
             try
             {
-                /*--
-                // 2.取得影片路徑
-                string videoPath = UDataCarrier.Get<string>(data[0], string.Empty);
-                if (string.IsNullOrEmpty(videoPath) || !File.Exists(videoPath))
-                {
-                    bStatusCode = false;
-                    strStatusMessage = "Invalid video path";
-                    return null;
-                }
-
-                // 3.取得影片長度 用到GetVideoDuration()
-                int videoDuration = GetVideoDuration(videoPath);
-                if (videoDuration <= 0)
-                {
-                    bStatusCode = false;
-                    strStatusMessage = "Failed to get video duration";
-                    return null;
-                }
-
-                // 4.設定輸出資料夾
-                string outputFolder = Path.Combine(Path.GetDirectoryName(videoPath), Path.GetFileNameWithoutExtension(videoPath));
-                if (!Directory.Exists(outputFolder))
-                {
-                    Directory.CreateDirectory(outputFolder);
-                }
-
-                // 5.擷取影片轉成照片,用到SplitVideoIntoFrames()
-
-                SplitVideoIntoFrames(videoPath, outputFolder, _intervalSeconds, MacroInstance);
-                --*/
-
-                // 1.設定輸出資料夾
+                // 1. 設定輸出資料夾
                 string outputFolder = Path.Combine(Path.GetDirectoryName(filepath), Path.GetFileNameWithoutExtension(filepath));
                 if (!Directory.Exists(outputFolder))
                 {
                     Directory.CreateDirectory(outputFolder);
                 }
 
-                //2. 處理ProcessVideos()
+                // 2. 處理 ProcessVideos()，並取得所有影片的影格對應資料 (for ini)
                 ProcessVideos(filepath, outputFolder, _intervalSeconds, MacroInstance);
 
-                //3.下一個傳送出去的資料
+                // 3. 下一個傳送出去的資料
                 CurrPropagationCarrier = UDataCarrier.MakeVariableItemsArray(outputFolder);
 
-                //4. 假設成功處理，設置狀態碼和狀態訊息
+                // 4. 假設成功處理，設置狀態碼和狀態訊息
                 bStatusCode = true;
                 strStatusMessage = "Success";
 
@@ -205,7 +159,6 @@ namespace VideoFrameExtractor
                 bStatusCode = false;
                 strStatusMessage = $"Exception:{e.Message}";
                 return null;
-
             }
         }
 
@@ -225,7 +178,7 @@ namespace VideoFrameExtractor
                     double frameCount = cap.FrameCount;
                     if (fps <= 0)
                     {
-                        Console.WriteLine($"影片的{videoPath}fps為0或無效");
+                        Console.WriteLine($"影片的 {videoPath} fps 為 0 或無效");
                         return 0;
                     }
 
@@ -410,7 +363,7 @@ namespace VideoFrameExtractor
             }
         }
 
-                /// <summary>
+        /// <summary>
         /// 寫出 ini 檔，格式如下：
         /// [System Section]
         /// intervalSeconds=設定的秒數
@@ -453,30 +406,24 @@ namespace VideoFrameExtractor
                 Console.WriteLine($"寫出 ini 檔時發生錯誤: {ex.Message}");
             }
         }
-        
+
         public string UpdateProgressBar(int processed, int total)
         {
-            // 計算進度百分比
             double progress = (double)processed / total;
             int progressBarLength = 50;
             int filledLength = (int)(progress * progressBarLength);
-
-            // 繪製進度條
             string progressBar = new string('█', filledLength).PadRight(progressBarLength, ' ');
             Console.Write($"\r進度: [{progressBar}] {progress:P0}");
-
             string progressBar_Output = $"\r進度: [{progressBar}] {progress:P0}";
             return progressBar_Output;
         }
 
         public override void Close()
         {
-            // 如果有需要關閉其他資源，可在這裡進行
             base.Close();
         }
     }
 }
-
 
 
 
