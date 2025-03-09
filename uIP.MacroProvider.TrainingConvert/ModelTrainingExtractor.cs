@@ -1,319 +1,233 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.Windows.Forms.DataVisualization.Charting;
+using Newtonsoft.Json.Linq;
 using uIP.Lib;
 using uIP.Lib.DataCarrier;
 using uIP.Lib.Script;
+using System.Windows.Forms;
 
-namespace UIPTraining
+namespace uIP.MacroProvider.TrainingConvert
 {
-    /// <summary>
-    /// ModelTrainingExtractor 作為 UIP 插件，負責：
-    /// 1. 根據使用者設定的 ModelPath 與 ConfigPath 呼叫 Python 執行檔進行模型訓練，
-    /// 2. 每秒聚合訓練輸出（例如 Loss 指標），並即時更新 UI 上的趨勢圖。
-    /// </summary>
-    public class ModelTrainingExtractor : UMacroMethodProviderPlugin
+    public class YoloTrainingPlugin : UMacroMethodProviderPlugin
     {
-        private const string TrainModelMethodName = "TrainModel_Execute";
-        private DateTime trainingStartTime;
-        private Dictionary<int, List<double>> secondMetrics = new Dictionary<int, List<double>>();
-        private string _modelFilePath = string.Empty;
-        private string _configFilePath = string.Empty;
+        private const string TrainYoloMethodName = "TrainYolo_Method";
 
-        // CancellationTokenSource 以支援取消操作
-        private CancellationTokenSource cts = new CancellationTokenSource();
+        // 供 GET/SET 的幾個私有欄位
+        private string _pythonPath = "python";
+        private string _trainPyFile = "";
+        private string _datasetYaml = "";
+        private string _modelCfg = "";
+        private string _weights = "";
+        private int _batchSize = 16;
+        private int _epochs = 10;
+        private string _device = "cuda:0";
 
-        /// <summary>
-        /// 請在 UIP 配置或 Popup 中將圖表控件傳入此屬性
-        /// </summary>
-        public Chart TrendChart { get; set; }
-
-        public ModelTrainingExtractor() : base()
+        public YoloTrainingPlugin()
         {
-            m_strInternalGivenName = "ModelTrainingExtractor";
+            m_strInternalGivenName = "YoloTrainingPlugin";
         }
 
         public override bool Initialize(UDataCarrier[] param)
         {
-            // 註冊 TrainModel 方法，當 UIP 調用時會執行 StartModelTraining 方法
+            // 1) 建立Macro
             var macro = new UMacro(
-                null,
+                owner: null,
                 m_strInternalGivenName,
-                TrainModelMethodName,
-                StartModelTraining,
-                null, // immutable
-                null, // variable
-                null, // prev
-                new UDataCarrierTypeDescription[] {
-                    new UDataCarrierTypeDescription(typeof(string), "Training Result Directory")
-                } // return value
+                TrainYoloMethodName,
+                RunTraining,
+                null,
+                null,
+                null,
+                new UDataCarrierTypeDescription[]
+                {
+                    new UDataCarrierTypeDescription(typeof(string), "Train Output Result")
+                }
             );
-
             m_UserQueryOpenedMethods.Add(macro);
-            m_createMacroDoneFromMethod.Add(TrainModelMethodName, MacroShellDoneCall_TrainModel);
 
-            // 設定可供 GET/SET 的參數：ModelPath 與 ConfigPath
-            m_MacroControls.Add("ModelPath", new UScriptControlCarrierMacro(
-                "ModelPath", true, true, true,
-                new UDataCarrierTypeDescription[] { new UDataCarrierTypeDescription(typeof(string), "Model file path") },
-                (carrier, macro, ref bool status) => IoctrlGet_FilePath(macro.MethodName, macro, "Model"),
-                (carrier, macro, data) => IoctrlSet_FilePath(macro.MethodName, macro, data, "Model")
-            ));
+            // 2) 執行完畢的收尾
+            m_createMacroDoneFromMethod.Add(TrainYoloMethodName, MacroShellDoneCall);
 
-            m_MacroControls.Add("ConfigPath", new UScriptControlCarrierMacro(
-                "ConfigPath", true, true, true,
-                new UDataCarrierTypeDescription[] { new UDataCarrierTypeDescription(typeof(string), "Config file path") },
-                (carrier, macro, ref bool status) => IoctrlGet_FilePath(macro.MethodName, macro, "Config"),
-                (carrier, macro, data) => IoctrlSet_FilePath(macro.MethodName, macro, data, "Config")
-            ));
+            // 3) 彈窗 UI
+            m_macroMethodConfigPopup.Add(TrainYoloMethodName, PopupConfTrain);
 
-            // 註冊配置彈出視窗
-            m_macroMethodConfigPopup.Add(TrainModelMethodName, PopupConf_TrainModel);
+            //-------------------------------------------------------------------------------------------
+            // 增添 GET/SET (m_MacroControls) 等方法，讓表單與 Plugin 互相傳遞參數
+            //-------------------------------------------------------------------------------------------
+            // 這裡示範將所有訓練參數整合成 JSON 字串存取 (也可拆成多個 ControlCarrierMacro)
+            m_MacroControls.Add(
+                "TrainYoloSetting",
+                new UScriptControlCarrierMacro(
+                    "TrainYoloSetting",
+                    true,
+                    true,
+                    true,
+                    // 說明這個參數的型態是 string (我們打算用 JSON 字串)
+                    new UDataCarrierTypeDescription[] { new UDataCarrierTypeDescription(typeof(string), "Training config in JSON") },
+                    // GET callback
+                    new fpGetMacroScriptControlCarrier((UScriptControlCarrier carrier, UMacro whichMacro, ref bool bRetStatus) =>
+                        IoctrlGet_TrainCfg(whichMacro.MethodName, whichMacro, ref bRetStatus)),
+                    // SET callback
+                    new fpSetMacroScriptControlCarrier((UScriptControlCarrier carrier, UMacro whichMacro, UDataCarrier[] data) =>
+                        IoctrlSet_TrainCfg(whichMacro.MethodName, whichMacro, data))
+                )
+            );
 
             m_bOpened = true;
             return true;
         }
 
-        private bool IoctrlSet_FilePath(string callMethodName, UMacro instance, UDataCarrier[] data, string type)
+        private bool MacroShellDoneCall(string callMethodName, UMacro instance)
         {
-            if (instance == null || data == null || data.Length == 0)
-                return false;
-
-            if (instance.MutableInitialData == null)
-                instance.MutableInitialData = new UDataCarrier(data[0].Data, data[0].Tp);
-            else
-                instance.MutableInitialData.Data = data[0].Data;
-
-            if (type == "Model")
-                _modelFilePath = data[0].ToString();
-            else if (type == "Config")
-                _configFilePath = data[0].ToString();
-
+            // 執行完後的收尾
             return true;
         }
 
-        private UDataCarrier[] IoctrlGet_FilePath(string callMethodName, UMacro instance, string type)
+        private Form PopupConfTrain(string callMethodName, UMacro macroToConf)
         {
-            return instance == null || instance.MutableInitialData == null
-                ? null
-                : new UDataCarrier[] { new UDataCarrier(instance.MutableInitialData.Data, instance.MutableInitialData.Tp) };
-        }
-
-        private Form PopupConf_TrainModel(string callMethodName, UMacro macroToConf)
-        {
-            // 這裡假設你已經定義了一個配置視窗 FormConfTrainModel，
-            // 該視窗可以讓使用者選擇 Model 與 Config 檔，同時可以選擇或創建一個 Chart 控制項
-            return callMethodName == TrainModelMethodName
-                ? new FormConfTrainModel() { MacroInstance = macroToConf }
-                : null;
-        }
-
-        private bool MacroShellDoneCall_TrainModel(string callMethodName, UMacro instance)
-        {
-            return true;
+            if (callMethodName == TrainYoloMethodName)
+            {
+                var form = new FormConfTrainingDraw();
+                // 你可以在這裡把 plugin 或 macroToConf 傳給表單
+                // form.SetPluginReference(this) 或
+                // form.MacroInstance = macroToConf;
+                return form;
+            }
+            return null;
         }
 
         /// <summary>
-        /// 這是 UIP 呼叫 TrainModel 宏時的入口方法，
-        /// 主要檢查 ModelPath 與 ConfigPath 是否設置，然後啟動訓練進程。
+        /// 核心：真正執行 Training 的 callback
         /// </summary>
-        private UDataCarrier[] StartModelTraining(
+        private UDataCarrier[] RunTraining(
             UMacro MacroInstance,
             UDataCarrier[] PrevPropagationCarrier,
             List<UMacroProduceCarrierResult> historyResultCarriers,
             List<UMacroProduceCarrierPropagation> historyPropagationCarriers,
             List<UMacroProduceCarrierDrawingResult> historyDrawingCarriers,
             List<UScriptHistoryCarrier> historyCarrier,
-            ref bool bStatusCode, ref string strStatusMessage,
+            ref bool bStatusCode,
+            ref string strStatusMessage,
             ref UDataCarrier[] CurrPropagationCarrier,
             ref UDrawingCarriers CurrDrawingCarriers,
             ref fpUDataCarrierSetResHandler PropagationCarrierHandler,
             ref fpUDataCarrierSetResHandler ResultCarrierHandler)
         {
-            if (string.IsNullOrEmpty(_modelFilePath) || string.IsNullOrEmpty(_configFilePath))
+            // 執行 Python 訓練
+            var psi = new ProcessStartInfo()
             {
-                strStatusMessage = "Model or config file path is missing";
-                return null;
-            }
-
-            if (TrendChart == null)
-            {
-                strStatusMessage = "Trend Chart is not set. Please configure a Chart control.";
-                return null;
-            }
-
-            trainingStartTime = DateTime.Now;
-            secondMetrics.Clear();
-            cts = new CancellationTokenSource();
-
-            // 非同步呼叫訓練進程
-            Task.Run(() => RunTrainingProcess(_modelFilePath, _configFilePath, cts.Token));
-
-            bStatusCode = true;
-            strStatusMessage = "Training started successfully.";
-            return new UDataCarrier[] { new UDataCarrier("Training Started", typeof(string)) };
-        }
-
-        /// <summary>
-        /// 非同步執行 Python 訓練進程，並根據輸出更新趨勢圖
-        /// </summary>
-        private async Task RunTrainingProcess(string modelFile, string configFile, CancellationToken token)
-        {
-            string arguments = $"--model \"{modelFile}\" --config \"{configFile}\"";
-            ProcessStartInfo psi = new ProcessStartInfo
-            {
-                FileName = "python",
-                Arguments = arguments,
+                FileName = _pythonPath,
+                Arguments = $"{_trainPyFile} --data {_datasetYaml} --cfg {_modelCfg} --weights {_weights} " +
+                            $"--batch-size {_batchSize} --epochs {_epochs} --device {_device}",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true,
+                CreateNoWindow = true
+            };
+
+            var proc = new Process();
+            proc.StartInfo = psi;
+            proc.OutputDataReceived += (sender, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    try
+                    {
+                        var obj = JObject.Parse(e.Data);
+                        int epoch = obj["epoch"]?.Value<int>() ?? -1;
+                        double tbox = obj["train_box_loss"]?.Value<double>() ?? 0;
+                        double vbox = obj["val_box_loss"]?.Value<double>() ?? 0;
+
+                        Console.WriteLine($"[Training] epoch={epoch}, tbox={tbox}, vbox={vbox}");
+                    }
+                    catch { /* 不是JSON就忽略 */ }
+                }
+            };
+            proc.ErrorDataReceived += (sender, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    Console.WriteLine("[stderr] " + e.Data);
+                }
             };
 
             try
             {
-                using (Process process = new Process { StartInfo = psi, EnableRaisingEvents = true })
-                {
-                    process.OutputDataReceived += (sender, e) =>
-                    {
-                        if (token.IsCancellationRequested)
-                        {
-                            try { process.Kill(); } catch { }
-                            return;
-                        }
+                proc.Start();
+                proc.BeginOutputReadLine();
+                proc.BeginErrorReadLine();
+                proc.WaitForExit();
 
-                        if (!string.IsNullOrEmpty(e.Data))
-                        {
-                            if (TryParseOutput(e.Data, out int epoch, out double metric))
-                            {
-                                int elapsedSec = (int)(DateTime.Now - trainingStartTime).TotalSeconds;
-                                lock (secondMetrics)
-                                {
-                                    if (!secondMetrics.ContainsKey(elapsedSec))
-                                        secondMetrics[elapsedSec] = new List<double>();
-                                    secondMetrics[elapsedSec].Add(metric);
-                                }
-                                AggregateAndUpdateChart(elapsedSec);
-                            }
-                        }
-                    };
-
-                    process.ErrorDataReceived += (sender, e) =>
-                    {
-                        if (!string.IsNullOrEmpty(e.Data))
-                            Debug.WriteLine("Error: " + e.Data);
-                    };
-
-                    process.Start();
-                    process.BeginOutputReadLine();
-                    process.BeginErrorReadLine();
-
-                    // 使用 WaitForExitAsync（若環境不支援，可參考下方自定義方法）
-                    await WaitForExitAsync(process, token);
-                }
+                bStatusCode = true;
+                strStatusMessage = "Training Completed!";
+                CurrPropagationCarrier = UDataCarrier.MakeVariableItemsArray("Train Done!");
+                return CurrPropagationCarrier;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("RunTrainingProcess Exception: " + ex.Message);
+                bStatusCode = false;
+                strStatusMessage = "Training Failed: " + ex.Message;
+                return null;
             }
         }
 
-        /// <summary>
-        /// 使用正則表達式解析 Python 輸出，格式例如："Epoch: 1, Loss: 0.234"
-        /// </summary>
-        private bool TryParseOutput(string data, out int epoch, out double metric)
+        //-------------------------------------------------------------------------------------------
+        // GET/SET 具體實作
+        //-------------------------------------------------------------------------------------------
+        // 這裡示範將所有參數存成 JSON，或可自行拆成多個 ControlCarrier
+        // 例： { \"pythonPath\": \"python\", \"trainPyFile\": \"train.py\", \"batchSize\": 16, ... }
+        //-------------------------------------------------------------------------------------------
+        private UDataCarrier[] IoctrlGet_TrainCfg(string methodName, UMacro instance, ref bool bRetStatus)
         {
-            epoch = 0;
-            metric = 0;
+            // 將當前 Plugin 的私有欄位組成 JSON
+            var obj = new JObject
+            {
+                ["pythonPath"] = _pythonPath,
+                ["trainPyFile"] = _trainPyFile,
+                ["datasetYaml"] = _datasetYaml,
+                ["modelCfg"] = _modelCfg,
+                ["weights"] = _weights,
+                ["batchSize"] = _batchSize,
+                ["epochs"] = _epochs,
+                ["device"] = _device
+            };
+            string jsonStr = obj.ToString(); // 序列化
+
+            bRetStatus = true;
+            return new UDataCarrier[] { new UDataCarrier(jsonStr, typeof(string)) };
+        }
+
+        private bool IoctrlSet_TrainCfg(string methodName, UMacro instance, UDataCarrier[] data)
+        {
+            // data[0] 裡面是一個 JSON 字串
+            if (data == null || data.Length == 0) return false;
+            string jsonStr = data[0].Data as string;
+            if (string.IsNullOrEmpty(jsonStr)) return false;
+
             try
             {
-                var match = Regex.Match(data, @"Epoch:\s*(\d+).*Loss:\s*([\d\.]+)");
-                if (match.Success && match.Groups.Count >= 3)
-                {
-                    epoch = int.Parse(match.Groups[1].Value);
-                    metric = double.Parse(match.Groups[2].Value);
-                    return true;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine("Parse Error: " + ex.Message);
-            }
-            return false;
-        }
+                var obj = JObject.Parse(jsonStr);
+                _pythonPath = obj["pythonPath"]?.Value<string>() ?? "python";
+                _trainPyFile = obj["trainPyFile"]?.Value<string>() ?? "";
+                _datasetYaml = obj["datasetYaml"]?.Value<string>() ?? "";
+                _modelCfg = obj["modelCfg"]?.Value<string>() ?? "";
+                _weights = obj["weights"]?.Value<string>() ?? "";
+                _batchSize = obj["batchSize"]?.Value<int>() ?? 16;
+                _epochs = obj["epochs"]?.Value<int>() ?? 10;
+                _device = obj["device"]?.Value<string>() ?? "cpu";
 
-        /// <summary>
-        /// 聚合指定秒數內所有數據，計算平均值後更新 UI 上的趨勢圖
-        /// </summary>
-        private void AggregateAndUpdateChart(int sec)
-        {
-            List<double> metrics;
-            lock (secondMetrics)
-            {
-                if (!secondMetrics.TryGetValue(sec, out metrics))
-                    return;
+                return true;
             }
-            double avg = metrics.Average();
-            if (TrendChart.InvokeRequired)
+            catch
             {
-                TrendChart.Invoke(new Action(() => UpdateChartPoint(sec, avg)));
+                return false;
             }
-            else
-            {
-                UpdateChartPoint(sec, avg);
-            }
-        }
-
-        /// <summary>
-        /// 檢查 Chart 中是否已有該秒數的資料點，若有則更新否則新增
-        /// </summary>
-        private void UpdateChartPoint(int sec, double avg)
-        {
-            var series = TrendChart.Series[0];
-            var existingPoint = series.Points.FirstOrDefault(p => (int)p.XValue == sec);
-            if (existingPoint != null)
-            {
-                existingPoint.YValues[0] = avg;
-            }
-            else
-            {
-                series.Points.AddXY(sec, avg);
-            }
-            TrendChart.Invalidate();
-        }
-
-        /// <summary>
-        /// 等待進程結束的非同步方法（適用於不支援 WaitForExitAsync 的環境）
-        /// </summary>
-        private Task WaitForExitAsync(Process process, CancellationToken token)
-        {
-            var tcs = new TaskCompletionSource<object>();
-            process.Exited += (s, e) => tcs.TrySetResult(null);
-            if (token != CancellationToken.None)
-            {
-                token.Register(() => tcs.TrySetCanceled());
-            }
-            return tcs.Task;
-        }
-
-        /// <summary>
-        /// 外部可調用此方法以取消訓練進程
-        /// </summary>
-        public void CancelTraining()
-        {
-            cts?.Cancel();
         }
 
         public override void Close()
         {
-            // 在插件關閉時，可嘗試取消進程與釋放相關資源
-            CancelTraining();
             base.Close();
         }
     }
