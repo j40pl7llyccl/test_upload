@@ -1,0 +1,268 @@
+uMProvidVideoToFrame.cs
+========================================
+using System;
+using System.Collections.Generic;
+using System.Windows.Forms;
+using uIP.Lib;
+using uIP.Lib.DataCarrier;
+using uIP.Lib.Script;
+
+namespace uIP.MacroProvider.StreamIO.VideoInToFrame
+{
+    public class uMProvidVideoToFrame : UMacroMethodProviderPlugin
+    {
+        private const string ExtractFramesMethodName = "VideoDev_ExtractFrames";
+
+        public uMProvidVideoToFrame() : base()
+        {
+            m_strInternalGivenName = "VideoToFrame";
+        }
+
+        public override bool Initialize(UDataCarrier[] param)
+        {
+            m_UserQueryOpenedMethods.Add(
+                new UMacro(null, m_strCSharpDefClassName, ExtractFramesMethodName, ExtractFrames,
+                           null, // immutable
+                           null, // variable
+                           null, // 前置輸入
+                           new UDataCarrierTypeDescription[] {
+                               new UDataCarrierTypeDescription(typeof(string[]), "Extracted frame file paths")
+                           }
+                )
+            );
+            m_createMacroDoneFromMethod.Add(ExtractFramesMethodName, MacroShellDoneCall_ExtractFrames);
+            m_macroMethodConfigPopup.Add(ExtractFramesMethodName, PopupConf_ExtractFrames);
+
+            m_bOpened = true;
+            return true;
+        }
+
+        // 封裝初始資料，包含影片檔案路徑與切割間隔（秒）
+        public static UDataCarrier MakeVideoToFrameInitData(string videoPath, int intervalSeconds)
+        {
+            if (!string.IsNullOrEmpty(videoPath) && System.IO.File.Exists(videoPath))
+            {
+                object[] data = new object[2];
+                data[0] = videoPath;
+                data[1] = intervalSeconds;
+                return UDataCarrier.MakeOne(data, true);
+            }
+            return null;
+        }
+
+        private Form PopupConf_ExtractFrames(string callMethodName, UMacro macroToConf)
+        {
+            return new FormConfVideoToFrame() { MacroInstance = macroToConf };
+        }
+
+        private bool MacroShellDoneCall_ExtractFrames(string callMethodName, UMacro instance)
+        {
+            // 可在 Macro 建立完成後進行後續處理
+            return true;
+        }
+
+        private UDataCarrier[] ExtractFrames(UMacro MacroInstance,
+                                               UDataCarrier[] PrevPropagationCarrier,
+                                               List<UMacroProduceCarrierResult> historyResultCarriers,
+                                               List<UMacroProduceCarrierPropagation> historyPropagationCarriers,
+                                               List<UMacroProduceCarrierDrawingResult> historyDrawingCarriers,
+                                               List<UScriptHistoryCarrier> historyCarrier,
+                                               ref bool bStatusCode, ref string strStatusMessage,
+                                               ref UDataCarrier[] CurrPropagationCarrier,
+                                               ref UDrawingCarriers CurrDrawingCarriers,
+                                               ref fpUDataCarrierSetResHandler PropagationCarrierHandler,
+                                               ref fpUDataCarrierSetResHandler ResultCarrierHandler)
+        {
+            if (MacroInstance.MutableInitialData == null)
+            {
+                bStatusCode = false;
+                strStatusMessage = "未配置初始資料。";
+                return null;
+            }
+
+            if (!(MacroInstance.MutableInitialData.Data is object[] data) || data.Length < 2)
+            {
+                bStatusCode = false;
+                strStatusMessage = "初始資料無效。";
+                return null;
+            }
+
+            string videoPath = data[0] as string;
+            int intervalSeconds = 0;
+            try
+            {
+                intervalSeconds = Convert.ToInt32(data[1]);
+            }
+            catch
+            {
+                bStatusCode = false;
+                strStatusMessage = "切割間隔不是有效的整數。";
+                return null;
+            }
+
+            string outputDir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(videoPath), "ExtractedFrames");
+            try
+            {
+                if (!System.IO.Directory.Exists(outputDir))
+                    System.IO.Directory.CreateDirectory(outputDir);
+
+                // 呼叫影片拆解工具進行處理
+                string[] extractedFiles = VideoFrameExtractor.ExtractFrames(videoPath, intervalSeconds, outputDir, null);
+                bStatusCode = true;
+                CurrPropagationCarrier = UDataCarrier.MakeVariableItemsArray(extractedFiles);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                bStatusCode = false;
+                strStatusMessage = "提取過程中出現例外：" + ex.Message;
+                return null;
+            }
+        }
+    }
+}
+
+VideoFrameExtractor.cs
+=============================
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
+using Accord;
+using Accord.Video.FFMPEG;
+
+
+namespace uIP.MacroProvider.StreamIO.VideoInToFrame
+{
+    public static class VideoFrameExtractor
+    {
+        public static string[] ExtractFrames(string videoPath, int intervalSeconds, string outputDir, Action<int> progressCallback)
+        {
+            List<string> extractedFiles = new List<string>();
+
+            using (var reader = new VideoFileReader())
+            {
+                reader.Open(videoPath);
+                int totalFrames = (int)reader.FrameCount;
+                // 計算影片的幀率與對應的影格間隔
+                double frameRate = reader.FrameRate.Value;
+                int frameInterval = (int)Math.Round(intervalSeconds * frameRate);
+                if (frameInterval <= 0) frameInterval = 1;
+
+                int currentFrame = 0;
+                int fileIndex = 0;
+                while (true)
+                {
+                    Bitmap frame = reader.ReadVideoFrame();
+                    if (frame == null)
+                        break;
+
+                    if (currentFrame % frameInterval == 0)
+                    {
+                        string fileName = System.IO.Path.Combine(outputDir, $"frame_{fileIndex:D5}.png");
+                        frame.Save(fileName, ImageFormat.Png);
+                        extractedFiles.Add(fileName);
+                        fileIndex++;
+                    }
+
+                    currentFrame++;
+                    frame.Dispose();
+
+                    // 回報進度（百分比）
+                    int progress = (int)((currentFrame / (double)totalFrames) * 100);
+                    progressCallback?.Invoke(progress);
+                }
+                reader.Close();
+            }
+
+            return extractedFiles.ToArray();
+        }
+    }
+}
+
+FormConfVideoToFrame.cs
+======================================================================
+using System;
+using System.Windows.Forms;
+using uIP.Lib;
+using uIP.Lib.Script;
+
+namespace uIP.MacroProvider.StreamIO.VideoInToFrame
+{
+    public partial class FormConfVideoToFrame : Form
+    {
+        // 可供 Macro 系統使用，保存相關初始化資料
+        public UMacro MacroInstance { get; set; }
+        public FormConfVideoToFrame()
+        {
+            InitializeComponent();
+        }
+
+        private void selectVideoButton_Click(object sender, EventArgs e)
+        {
+            OpenFileDialog ofd = new OpenFileDialog();
+            ofd.Filter = "Video Files|*.mp4;*.avi;*.mov;*.mkv|All Files|*.*";
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+                textBoxPickedDir.Text = ofd.FileName;
+            }
+        }
+
+        private void intervalTextBox_TextChanged(object sender, EventArgs e)
+        {
+            // 可擴充檢查輸入是否為正整數
+        }
+
+        private void textBoxPickedDir_TextChanged(object sender, EventArgs e)
+        {
+            label_progress.Text = "";
+        }
+
+        private async void btnExtract_Click(object sender, EventArgs e)
+        {
+            string videoPath = textBoxPickedDir.Text;
+            if (string.IsNullOrEmpty(videoPath) || !System.IO.File.Exists(videoPath))
+            {
+                MessageBox.Show("請選擇有效的影片檔案");
+                return;
+            }
+            if (!int.TryParse(intervalTextBox.Text, out int intervalSeconds) || intervalSeconds <= 0)
+            {
+                MessageBox.Show("請輸入有效的切割間隔(秒)");
+                return;
+            }
+
+            btnExtract.Enabled = false;
+            label_progress.Text = "開始切割...";
+
+            await System.Threading.Tasks.Task.Run(() =>
+            {
+                string outputDir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(videoPath), "ExtractedFrames");
+                if (!System.IO.Directory.Exists(outputDir))
+                    System.IO.Directory.CreateDirectory(outputDir);
+
+                // 呼叫影片拆解邏輯，並藉由 callback 回報進度
+                VideoFrameExtractor.ExtractFrames(videoPath, intervalSeconds, outputDir, progress =>
+                {
+                    this.Invoke((Action)(() =>
+                    {
+                        label_progress.Text = $"進度：{progress}%";
+                    }));
+                });
+            });
+
+            label_progress.Text = "切割完成！";
+            btnExtract.Enabled = true;
+        }
+
+        private void intervalLabel_Click(object sender, EventArgs e)
+        {
+            // 不需處理
+        }
+
+        private void label_progress_Click(object sender, EventArgs e)
+        {
+            // 不需處理
+        }
+    }
+}

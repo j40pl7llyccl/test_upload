@@ -1,0 +1,143 @@
+🔹 主要修改點
+1. 增加 Index 來追蹤當前影格
+像 uMProvidImageLoader.cs 的 OpenImageIndex 一樣，我們需要一個 枚舉 (enum) 來定義 UDataCarrier 存放的數據格式：
+
+csharp
+複製
+編輯
+internal enum VideoFrameIndex : int
+{
+    VideoPath = 0,   // 影片路徑
+    Interval,        // 切割間隔 (秒)
+    FrameRate,       // 影片幀率
+    TotalFrames,     // 影片總影格數
+    CurrentIndex,    // 當前影格索引
+    MaxAsCount       // 防止新增超出這個範圍
+}
+2. 修改 MakeVideoToFrameInitData，加入 FrameRate、TotalFrames 和 CurrentIndex
+原本 MakeVideoToFrameInitData 只存影片路徑和間隔秒數，但現在需要初始化 總影格數 (TotalFrames)、幀率 (FrameRate) 和當前索引 (CurrentIndex)：
+
+csharp
+複製
+編輯
+public static UDataCarrier MakeVideoToFrameInitData(string videoPath, int intervalSeconds)
+{
+    if (!string.IsNullOrEmpty(videoPath) && System.IO.File.Exists(videoPath))
+    {
+        using (var reader = new Accord.Video.FFMPEG.VideoFileReader())
+        {
+            reader.Open(videoPath);
+            double frameRate = reader.FrameRate.Value;   // 影片幀率
+            long totalFrames = reader.FrameCount;       // 影片總影格數
+            reader.Close();
+
+            object[] data = new object[(int)VideoFrameIndex.MaxAsCount];
+            data[(int)VideoFrameIndex.VideoPath] = videoPath;
+            data[(int)VideoFrameIndex.Interval] = intervalSeconds;
+            data[(int)VideoFrameIndex.FrameRate] = frameRate;
+            data[(int)VideoFrameIndex.TotalFrames] = totalFrames;
+            data[(int)VideoFrameIndex.CurrentIndex] = 0;   // 初始索引設為 0
+
+            return UDataCarrier.MakeOne(data, true);
+        }
+    }
+    return null;
+}
+✅ 新增的內容
+
+FrameRate: 記錄影片的每秒影格數，幫助計算該讀取哪個影格。
+TotalFrames: 記錄整部影片有多少影格，確保不會超出範圍。
+CurrentIndex: 記錄當前處理的影格位置，並且 每次執行 Macro 時都要更新。
+3. 修改 ExtractFrames，每次只處理「當前影格」，然後更新 CurrentIndex
+csharp
+複製
+編輯
+private UDataCarrier[] ExtractFrames(UMacro MacroInstance,
+                                     UDataCarrier[] PrevPropagationCarrier,
+                                     List<UMacroProduceCarrierResult> historyResultCarriers,
+                                     List<UMacroProduceCarrierPropagation> historyPropagationCarriers,
+                                     List<UMacroProduceCarrierDrawingResult> historyDrawingCarriers,
+                                     List<UScriptHistoryCarrier> historyCarrier,
+                                     ref bool bStatusCode, ref string strStatusMessage,
+                                     ref UDataCarrier[] CurrPropagationCarrier,
+                                     ref UDrawingCarriers CurrDrawingCarriers,
+                                     ref fpUDataCarrierSetResHandler PropagationCarrierHandler,
+                                     ref fpUDataCarrierSetResHandler ResultCarrierHandler)
+{
+    if (MacroInstance.MutableInitialData == null)
+    {
+        bStatusCode = false;
+        strStatusMessage = "未配置初始資料。";
+        return null;
+    }
+
+    if (!(MacroInstance.MutableInitialData.Data is object[] data) || data.Length < (int)VideoFrameIndex.MaxAsCount)
+    {
+        bStatusCode = false;
+        strStatusMessage = "初始資料無效。";
+        return null;
+    }
+
+    // ✅ 取出影片資訊
+    string videoPath = data[(int)VideoFrameIndex.VideoPath] as string;
+    int intervalSeconds = Convert.ToInt32(data[(int)VideoFrameIndex.Interval]);
+    double frameRate = Convert.ToDouble(data[(int)VideoFrameIndex.FrameRate]);
+    long totalFrames = Convert.ToInt64(data[(int)VideoFrameIndex.TotalFrames]);
+    long currentIndex = Convert.ToInt64(data[(int)VideoFrameIndex.CurrentIndex]);
+
+    if (currentIndex >= totalFrames)
+    {
+        bStatusCode = false;
+        strStatusMessage = "已達影片結尾";
+        return null;
+    }
+
+    string outputDir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(videoPath), "ExtractedFrames");
+    if (!System.IO.Directory.Exists(outputDir))
+        System.IO.Directory.CreateDirectory(outputDir);
+
+    try
+    {
+        using (var reader = new Accord.Video.FFMPEG.VideoFileReader())
+        {
+            reader.Open(videoPath);
+            long targetFrame = (long)(currentIndex); // 取當前影格
+            reader.Seek(targetFrame);  // ✅ 直接跳到指定影格
+            Bitmap frame = reader.ReadVideoFrame();
+            reader.Close();
+
+            if (frame != null)
+            {
+                string fileName = System.IO.Path.Combine(outputDir, $"frame_{currentIndex:D5}.png");
+                frame.Save(fileName, System.Drawing.Imaging.ImageFormat.Png);
+                frame.Dispose();
+
+                // ✅ 更新 `CurrentIndex`
+                data[(int)VideoFrameIndex.CurrentIndex] = currentIndex + (long)(frameRate * intervalSeconds);
+                
+                // ✅ 把輸出結果存入 UDataCarrier，並傳遞給 Macro
+                bStatusCode = true;
+                CurrPropagationCarrier = UDataCarrier.MakeVariableItemsArray(new string[] { fileName });
+                return null;
+            }
+            else
+            {
+                bStatusCode = false;
+                strStatusMessage = "無法讀取影格";
+                return null;
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        bStatusCode = false;
+        strStatusMessage = "提取過程中出現例外：" + ex.Message;
+        return null;
+    }
+}
+🔹 修改後的運作方式
+步驟	行為
+第一次執行 Macro	CurrentIndex = 0，讀取第 0 影格，儲存 frame_00000.png
+第二次執行 Macro	CurrentIndex += frameRate * intervalSeconds，跳到下一個指定影格
+重複執行	逐步往後讀取，直到 CurrentIndex >= TotalFrames
+讀取到影片結尾	停止，回傳 "已達影片結尾"
