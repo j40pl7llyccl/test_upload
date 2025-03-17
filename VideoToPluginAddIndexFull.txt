@@ -1,0 +1,202 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Windows.Forms;
+using Accord.Video.FFMPEG;
+using uIP.Lib;
+using uIP.Lib.DataCarrier;
+using uIP.Lib.Script;
+
+namespace uIP.MacroProvider.StreamIO.VideoInToFrame
+{
+    // 針對連續數據流，定義 UDataCarrier 陣列中各項的索引
+    internal enum VideoStreamIndex : int
+    {
+        VideoPath = 0,     // 影片檔案路徑
+        FrameInterval,     // 以影格數計算的切割間隔 (秒數 * 幀率)
+        CurrentFrame,      // 當前讀取到的影格數 (用來追蹤進度)
+        ReaderInstance,    // VideoFileReader 實例 (持續開啟)
+        FrameRate,         // 影片的幀率
+        MaxCount           // 標記用，不使用
+    }
+
+    public class uMProvidVideoStreamToFrame : UMacroMethodProviderPlugin
+    {
+        private const string ExtractNextFrameMethodName = "VideoDev_ExtractNextFrame";
+
+        public uMProvidVideoStreamToFrame() : base()
+        {
+            m_strInternalGivenName = "VideoStreamToFrame";
+        }
+
+        public override bool Initialize(UDataCarrier[] param)
+        {
+            m_UserQueryOpenedMethods.Add(
+                new UMacro(null, m_strCSharpDefClassName, ExtractNextFrameMethodName, ExtractNextFrame,
+                           null, // immutable
+                           null, // variable
+                           null, // 前置輸入要求
+                           new UDataCarrierTypeDescription[] {
+                               new UDataCarrierTypeDescription(typeof(string), "Extracted frame file path")
+                           }
+                )
+            );
+            m_createMacroDoneFromMethod.Add(ExtractNextFrameMethodName, MacroShellDoneCall_ExtractNextFrame);
+            m_macroMethodConfigPopup.Add(ExtractNextFrameMethodName, PopupConf_ExtractNextFrame);
+
+            m_bOpened = true;
+            return true;
+        }
+
+        /// <summary>
+        /// 初始化連續數據流用的 UDataCarrier，內含影片路徑、切割間隔、當前影格、讀取器與幀率等資料
+        /// </summary>
+        public static UDataCarrier MakeVideoStreamInitData(string videoPath, int intervalSeconds)
+        {
+            if (!string.IsNullOrEmpty(videoPath) && File.Exists(videoPath))
+            {
+                // 建立 VideoFileReader 並開啟影片
+                VideoFileReader reader = new VideoFileReader();
+                reader.Open(videoPath);
+                double frameRate = reader.FrameRate.Value;
+                int frameInterval = (int)Math.Round(intervalSeconds * frameRate);
+                if (frameInterval <= 0)
+                    frameInterval = 1;
+                long currentFrame = 0;
+
+                object[] data = new object[(int)VideoStreamIndex.MaxCount];
+                data[(int)VideoStreamIndex.VideoPath] = videoPath;
+                data[(int)VideoStreamIndex.FrameInterval] = frameInterval;
+                data[(int)VideoStreamIndex.CurrentFrame] = currentFrame;
+                data[(int)VideoStreamIndex.ReaderInstance] = reader;
+                data[(int)VideoStreamIndex.FrameRate] = frameRate;
+
+                return UDataCarrier.MakeOne(data, true);
+            }
+            return null;
+        }
+
+        // 回傳設定此 Macro 的 UI 視窗 (使用者可在 UI 上選擇影片、輸入切割秒數)
+        private Form PopupConf_ExtractNextFrame(string callMethodName, UMacro macroToConf)
+        {
+            return new FormConfVideoToFrame() { MacroInstance = macroToConf };
+        }
+
+        private bool MacroShellDoneCall_ExtractNextFrame(string callMethodName, UMacro instance)
+        {
+            // Macro 完成後可進行額外處理 (例如關閉影片流)
+            return true;
+        }
+
+        /// <summary>
+        /// 連續數據流情境下，每次呼叫此方法抽取下一個符合切割間隔的影格
+        /// </summary>
+        private UDataCarrier[] ExtractNextFrame(UMacro MacroInstance,
+                                                UDataCarrier[] PrevPropagationCarrier,
+                                                List<UMacroProduceCarrierResult> historyResultCarriers,
+                                                List<UMacroProduceCarrierPropagation> historyPropagationCarriers,
+                                                List<UMacroProduceCarrierDrawingResult> historyDrawingCarriers,
+                                                List<UScriptHistoryCarrier> historyCarrier,
+                                                ref bool bStatusCode, ref string strStatusMessage,
+                                                ref UDataCarrier[] CurrPropagationCarrier,
+                                                ref UDrawingCarriers CurrDrawingCarriers,
+                                                ref fpUDataCarrierSetResHandler PropagationCarrierHandler,
+                                                ref fpUDataCarrierSetResHandler ResultCarrierHandler)
+        {
+            if (MacroInstance.MutableInitialData == null)
+            {
+                bStatusCode = false;
+                strStatusMessage = "未配置初始資料。";
+                return null;
+            }
+
+            if (!(MacroInstance.MutableInitialData.Data is object[] data) || data.Length < (int)VideoStreamIndex.MaxCount)
+            {
+                bStatusCode = false;
+                strStatusMessage = "初始資料無效。";
+                return null;
+            }
+
+            // 讀取 UDataCarrier 中的連續流參數
+            string videoPath = data[(int)VideoStreamIndex.VideoPath] as string;
+            int frameInterval = (int)data[(int)VideoStreamIndex.FrameInterval];
+            long currentFrame = Convert.ToInt64(data[(int)VideoStreamIndex.CurrentFrame]);
+            VideoFileReader reader = data[(int)VideoStreamIndex.ReaderInstance].Data as VideoFileReader;
+            double frameRate = Convert.ToDouble(data[(int)VideoStreamIndex.FrameRate]);
+
+            if (reader == null)
+            {
+                bStatusCode = false;
+                strStatusMessage = "VideoFileReader 未初始化。";
+                return null;
+            }
+
+            Bitmap extractedFrame = null;
+            // 以目前 currentFrame 對應的抽取次數作為檔案編號
+            int extractionIndex = (int)(currentFrame / frameInterval);
+            bool frameExtracted = false;
+
+            // 以迴圈讀取，直到找到符合切割條件的影格或影片結束
+            while (true)
+            {
+                Bitmap frame = reader.ReadVideoFrame();
+                if (frame == null)
+                {
+                    bStatusCode = false;
+                    strStatusMessage = "影片已播放完畢。";
+                    break;
+                }
+
+                // 若當前影格為抽取點 (例如 currentFrame % frameInterval == 0)
+                if (currentFrame % frameInterval == 0)
+                {
+                    extractedFrame = frame; // 此影格符合條件，保存起來
+                    frameExtracted = true;
+                    break;
+                }
+                else
+                {
+                    // 非抽取點則釋放
+                    frame.Dispose();
+                }
+                currentFrame++;
+            }
+
+            if (!frameExtracted || extractedFrame == null)
+            {
+                bStatusCode = false;
+                strStatusMessage = "無法抽取影格或影片結束。";
+                return null;
+            }
+
+            // 更新 currentFrame 為下一次呼叫準備 (加 1 表示本次已使用)
+            currentFrame++;
+            data[(int)VideoStreamIndex.CurrentFrame] = currentFrame;
+
+            // 將抽取到的影格存檔
+            string outputDir = Path.Combine(Path.GetDirectoryName(videoPath), "ExtractedFramesStream");
+            if (!Directory.Exists(outputDir))
+                Directory.CreateDirectory(outputDir);
+
+            string outputFileName = Path.Combine(outputDir, $"stream_frame_{extractionIndex:D5}.png");
+            try
+            {
+                extractedFrame.Save(outputFileName, ImageFormat.Png);
+                extractedFrame.Dispose();
+            }
+            catch (Exception ex)
+            {
+                bStatusCode = false;
+                strStatusMessage = "儲存影格失敗：" + ex.Message;
+                return null;
+            }
+
+            // 將存檔後的檔案路徑封裝為 UDataCarrier，回傳給 Macro 系統
+            bStatusCode = true;
+            CurrPropagationCarrier = UDataCarrier.MakeVariableItemsArray(outputFileName);
+            return null;
+        }
+    }
+}
